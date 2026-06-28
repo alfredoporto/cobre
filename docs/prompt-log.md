@@ -210,3 +210,45 @@ Related files:
 
 - `docs/design-feedback.md`
 - `docs/prompt-log.md`
+
+## 2026-06-28 - Implementation Work Ticket Generation
+
+Purpose: Convert the design documentation into atomic implementation work tickets for Jira or Linear.
+
+Prompt:
+
+```text
+Now create a work Act as a Technical Project Manager and Senior Software Developer. I will provide software design documentation. Break down the implementation into atomic, sequential work tickets formatted for Jira/Linear. The goal is to generate tasks that an autonomous coding agent can pick up and execute independently.
+
+Output STRICTLY a valid Markdown file. Do not include conversational text outside the Markdown structure.
+
+Each ticket must adhere strictly to the following format and rules:
+
+### [cobre-assessment-<001-Sequential_Number>] <Ticket Title>
+- **Description**: <Short, concise technical description of the task>
+- **Acceptance Criteria**:
+  - <AC 1>
+  - <AC 2>
+- **Depends on**: <List of [cobre-assessment-XXX] IDs or "None">
+- **Blocks**: <List of [cobre-assessment-XXX] IDs or "None">
+
+**Constraints for Ticket Generation:**
+1. **Granularity**: Tickets must be highly cohesive and loosely coupled. Separate infrastructure/setup, database migrations, domain logic, API routing, and testing into distinct tickets.
+2. **Sequential Flow**: Ensure the dependency graph is acyclic. A ticket cannot block its own dependency.
+3. **Technical Depth**: Assume the assignee is a coding agent. Include specific architectural patterns, expected libraries, or data structures mentioned in the design docs within the Description or Acceptance Criteria.
+
+doc is all files in /docs
+append prompt to log.md file
+commit work
+```
+
+Output used:
+
+- Created `docs/work.md` with sequential Jira/Linear-style implementation tickets.
+- Based the tickets on all files under `docs/`, including API, system design, security, design feedback, and prompt history.
+- Used the documented implementation assumptions: Java 21, Maven, Spring Boot, PostgreSQL, RabbitMQ, Docker Compose, transactional outbox, replay jobs, idempotency, webhook signing, tenant-scoped APIs, and OWASP controls.
+
+Related files:
+
+- `docs/work.md`
+- `docs/prompt-log.md`
