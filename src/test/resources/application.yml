@@ -1,0 +1,25 @@
+spring:
+  main:
+    banner-mode: "off"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration
+      - org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+
+logging:
+  level:
+    root: WARN
+
+cobre:
+  notifications:
+    fixture: classpath:notification_events.json
+  webhook:
+    url: http://localhost:8089/webhook
+    connect-timeout: 1s
+    request-timeout: 2s
+    max-attempts: 3
+    retry-backoff: 0ms
