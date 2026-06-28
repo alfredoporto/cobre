@@ -252,3 +252,51 @@ Related files:
 
 - `docs/work.md`
 - `docs/prompt-log.md`
+
+## 2026-06-28 - cobre-assessment-001 Implementation
+
+Purpose: Implement the first autonomous development ticket by bootstrapping the Java service skeleton.
+
+Prompt:
+
+```text
+Cobre
+Act as an Autonomous Software Developer. Your objective is to implement a specific work ticket for this repository.
+
+Target Ticket: cobre-assessment-001
+Architecture Context: /docs/*.md
+...
+Log prompt to /docs/prompt-log.md
+```
+
+Follow-up prompt:
+
+```text
+Implement the plan.
+```
+
+Output used:
+
+- Created a feature branch for `cobre-assessment-001`.
+- Bootstrapped a Java 21 Maven Spring Boot service for the notification capability.
+- Added a balanced ports-and-adapters package layout with framework-free domain, application ports, and simple API, worker, persistence, messaging, relay, and observability adapters.
+- Added a minimal Actuator health endpoint surface.
+
+Follow-up correction:
+
+```text
+remove all tests you added, they're not valuable - also repo structure is a mess - follow a simple port-adapter for infra, keep domain clean
+```
+
+Correction output:
+
+- Removed the tests added during the initial skeleton pass.
+- Replaced flat infrastructure package anchors with a simple hexagonal structure and then removed `in`/`out` package nesting to keep the assessment layout lightweight.
+- Kept Spring Security configuration outside the domain and application packages.
+
+Related files:
+
+- `pom.xml`
+- `.gitignore`
+- `src/main/java/com/cobre/notifications`
+- `src/main/resources/application.yml`
