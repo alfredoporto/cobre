@@ -8,6 +8,7 @@ spring:
       - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
       - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
 management:
   endpoints:
@@ -17,3 +18,13 @@ management:
   endpoint:
     health:
       show-details: never
+
+cobre:
+  notifications:
+    fixture: classpath:notification_events.json
+  webhook:
+    url: ${COBRE_WEBHOOK_URL:http://localhost:8089/webhook}
+    connect-timeout: 1s
+    request-timeout: 2s
+    max-attempts: 3
+    retry-backoff: 250ms
