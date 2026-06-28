@@ -10,6 +10,7 @@ The proposal covers a scalable webhook notification capability and a self-servic
 - [API design](docs/api-design.md): REST API contracts for listing, fetching, and replaying notification events.
 - [Security](docs/security.md): OWASP risks and concrete mitigation controls.
 - [AI usage](AI_USAGE.md): documented AI assistance for the challenge.
+- [Prompt log](docs/prompt-log.md): detailed prompt trail and human validation notes.
 
 ## Executive Summary
 

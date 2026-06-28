@@ -12,6 +12,8 @@ This repository was prepared with AI assistance as a productivity complement.
 
 ## Prompt Summary
 
+Detailed prompt history is tracked in [docs/prompt-log.md](docs/prompt-log.md).
+
 Initial prompt context included:
 
 ```text

@@ -139,3 +139,74 @@ Related files:
 - `docs/prompt-log.md`
 - `README.md`
 - `AI_USAGE.md`
+
+## 2026-06-28 - Architecture Critic Review
+
+Purpose: Critically review the documentation-only architecture as a senior software architecture critic and principal engineer.
+
+Prompt:
+
+```text
+Act as a Senior Software Architecture Critic and Principal Engineer. I will provide you with the architecture documentation and/or code from a software repository. Your primary goal is to critically analyze the design, identify potential bugs or flaws, propose robust improvements, and provide well-reasoned arguments for technical trade-offs.
+...
+Please format your response using the following structure:
+- Executive Summary
+- Critical Flaws & Risks
+- Deep-Dive Trade-off Analysis
+- Actionable Recommendations
+- Missing Context
+```
+
+Follow-up prompt:
+
+```text
+the arch doc are all the files present in the current directory and inside /docs folder too
+```
+
+Output used:
+
+- Reviewed the root documentation and all files under `docs/`.
+- Identified architecture risks around persist-then-enqueue delivery loss, state transition races, replay semantics, endpoint snapshot policy, deduplication, pagination, and sensitive payload exposure.
+- Proposed improvements including transactional outbox, explicit delivery state machine, separate replay jobs, unique constraints, cursor pagination, and stronger data protection rules.
+
+Human validation:
+
+- Asked for missing-context assumptions to be incorporated into a reusable design feedback document for another agent.
+
+Related files:
+
+- `README.md`
+- `AI_USAGE.md`
+- `docs/system-design.md`
+- `docs/api-design.md`
+- `docs/security.md`
+
+## 2026-06-28 - Design Feedback Refinement
+
+Purpose: Reevaluate the architecture critique with explicit operating assumptions and produce a design feedback artifact for another agent.
+
+Prompt:
+
+```text
+From the missing context, assume: event volume to be average ~ 100k events daily - to avoid thinking about db scaling either by partitioning or sharding - but keep it documented the scaling alternative when user growth can not longer be handle by our initial infrastructure; as for SLO use default one from Stripe as a good standard; let's keep event ordering not mandatory, but a nice feature to have in the future; as for ci/cd topology lets have everything dockerize and run with docker compose locally, this is a home assetment, so no need to deploy it in tst/prod envs; follow owasp and data regulations for sensitive data; assume the simplest suscription model; multi region, disaster recovery and RPO.RTO can be achieved by cloud vendor capabilities in the deployment set up - leave the thoughts as a arch doc
+
+With that added context; reevaluate and improve your analysis and output it in a design-feedback.md file inside /doc for another agent consumption
+```
+
+Output used:
+
+- Created `docs/design-feedback.md` because the repository uses `docs/`, not `doc/`.
+- Reframed the critique for about 100k events per day and an initially unpartitioned, unsharded relational database.
+- Documented the future growth path through indexes, read replicas, cold storage, table partitioning, queue isolation, and eventual sharding only after measured saturation.
+- Added a Stripe-like webhook retry baseline: prompt first attempt, exponential backoff, automatic retries for up to three days, manual replay, and no hard ordering guarantee.
+- Added Docker Compose local topology guidance.
+- Preserved OWASP, sensitive data, simple subscription, and future cloud DR/RPO/RTO considerations.
+
+Human validation:
+
+- Requested staging and committing all documentation changes after this prompt log update.
+
+Related files:
+
+- `docs/design-feedback.md`
+- `docs/prompt-log.md`
