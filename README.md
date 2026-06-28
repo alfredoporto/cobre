@@ -1,32 +1,105 @@
 # Cobre Notification Events Solution
 
-Documentation-only response for the Cobre event notification challenge.
+Runnable home-assessment implementation for the Cobre event notification challenge.
 
-The proposal covers a scalable webhook notification capability and a self-service REST API for clients to query and replay notification events. It uses the sample file provided at `/Users/alfredos/Downloads/notification_events.json`, which contains 10 notification events for `CLIENT001`, `CLIENT002`, and `CLIENT003`.
+The repository contains a focused Spring Boot slice for the required self-service API and webhook replay flow, plus architecture documentation for the production-grade outbox design.
 
-## Contents
+## What Is Implemented
 
-- [System design](docs/system-design.md): architecture, delivery flow, retry strategy, storage, and observability.
-- [API design](docs/api-design.md): REST API contracts for listing, fetching, and replaying notification events.
-- [Security](docs/security.md): OWASP risks and concrete mitigation controls.
-- [AI usage](AI_USAGE.md): documented AI assistance for the challenge.
+- Java 21 Spring Boot service using a hexagonal package structure.
+- Fixture-backed notification storage loaded from `src/main/resources/notification_events.json`.
+- Tenant-scoped local auth using `X-Client-Id` and `X-Scopes` headers.
+- Required REST endpoints:
+  - `GET /notification_events`
+  - `GET /notification_events/{notification_event_id}`
+  - `POST /notification_events/{notification_event_id}/replay`
+- Webhook delivery adapter using Java `HttpClient`, strict timeouts, delivery headers, transient/permanent failure classification, and bounded local retries.
+- Stored delivery attempt history visible from the detail endpoint.
+- Integration and adapter tests for tenant isolation, filters, replay rules, error shape, and retry classification.
+
+## What Is Design-Only
+
+The production architecture uses PostgreSQL, transactional outbox, RabbitMQ, outbox relay, async workers, lease recovery, dead-letter handling, retention jobs, OAuth/JWT, and full observability. Those pieces are documented but intentionally not implemented in the local assessment slice.
+
+## Run And Test
+
+Prerequisites:
+
+- Java 21
+- Maven 3.9+
+
+Run tests:
+
+```bash
+mvn test
+```
+
+Run the app:
+
+```bash
+COBRE_WEBHOOK_URL=https://example.com/webhook mvn spring-boot:run
+```
+
+The default webhook URL is `http://localhost:8089/webhook`. If no receiver is running there, replay requests are still accepted but the stored attempt is marked failed.
+
+## Demo Requests
+
+List events for `CLIENT002`:
+
+```bash
+curl -s 'http://localhost:8080/notification_events' \
+  -H 'X-Client-Id: CLIENT002' \
+  -H 'X-Scopes: notification-events:read'
+```
+
+Filter failed events:
+
+```bash
+curl -s 'http://localhost:8080/notification_events?delivery_status=failed' \
+  -H 'X-Client-Id: CLIENT003' \
+  -H 'X-Scopes: notification-events:read'
+```
+
+Fetch one event:
+
+```bash
+curl -s 'http://localhost:8080/notification_events/EVT003' \
+  -H 'X-Client-Id: CLIENT002' \
+  -H 'X-Scopes: notification-events:read'
+```
+
+Replay a failed event:
+
+```bash
+curl -s -X POST 'http://localhost:8080/notification_events/EVT003/replay' \
+  -H 'X-Client-Id: CLIENT002' \
+  -H 'X-Scopes: notification-events:read,notification-events:replay'
+```
+
+Cross-client access returns `404`:
+
+```bash
+curl -i 'http://localhost:8080/notification_events/EVT003' \
+  -H 'X-Client-Id: CLIENT001' \
+  -H 'X-Scopes: notification-events:read'
+```
+
+## Assessment Materials
+
+- [System design](docs/system-design.md): scalable production architecture, outbox flow, retries, storage, and observability.
+- [API design](docs/api-design.md): REST behavior and response examples.
+- [OpenAPI contract](docs/openapi.yaml): machine-readable API contract for the implemented endpoints.
+- [Architecture diagram](docs/architecture.svg): viewable production design visual.
+- [Excalidraw source](docs/architecture.excalidraw): editable diagram source.
+- [Security](docs/security.md): OWASP risks and mitigations.
+- [Implementation plan](home-assessment-implementation.md): scoped plan used to build this submission.
+- [AI usage](AI_USAGE.md): documented AI assistance.
 - [Prompt log](docs/prompt-log.md): detailed prompt trail and human validation notes.
-
-## Executive Summary
-
-Cobre should model each platform-generated event as a durable `notification_event` owned by exactly one client. Delivery is asynchronous: events are accepted from the platform event stream, validated against an active subscription for the same `client_id`, persisted, and delivered to the subscribed HTTPS webhook endpoint by workers. Delivery attempts are tracked independently, retried with exponential backoff and jitter, and eventually marked as `completed` or terminal `failed`.
-
-The self-service API is scoped by the authenticated client identity. Clients can list their notification events, inspect one event, and request replay only for terminal failed deliveries. Internal teams observe the capability through near real-time metrics, traces, structured logs, dashboards, and alerts.
 
 ## Primary Assumptions
 
-- The sample JSON timestamps are treated as event creation or delivery timestamps for documentation examples.
-- API authorization is tenant-scoped: the authenticated principal determines `client_id`; callers cannot choose another client through query parameters.
-- Webhook endpoints are configured through a subscription management capability, not directly inside the replay endpoint.
-- Delivery is at-least-once. Clients must handle duplicate webhook calls using an idempotency key.
-- Current implementation detail is documentation-only. If code is later required, the recommended local stack is Java 21, Maven, Spring Boot, embedded persistence seeded from the JSON file, and HTTP test doubles for webhook delivery.
-
-## References
-
-- Spring Boot project: https://spring.io/projects/spring-boot
-- OWASP Top 10 project: https://owasp.org/www-project-top-ten/
+- The sample JSON timestamps are treated as event creation timestamps.
+- The local slice uses header auth for demo speed; production should use OAuth2 client credentials or signed JWTs.
+- The local repository is in-memory and resets on restart.
+- The local replay path processes synchronously; production should enqueue replay work through the outbox and worker path.
+- Webhook URLs are configurable because the final URL may be provided during presentation.

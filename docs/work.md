@@ -167,7 +167,7 @@
 - **Blocks**: [cobre-assessment-024], [cobre-assessment-025], [cobre-assessment-029], [cobre-assessment-031]
 
 ### [cobre-assessment-022] Implement Create Replay API
-- **Description**: Add `POST /notification_events/{notification_event_id}/replays` using replay service, tenant scope, replay scope, idempotency key, and documented response shape.
+- **Description**: Add `POST /notification_events/{notification_event_id}/replay` using replay service, tenant scope, replay scope, idempotency key, and documented response shape.
 - **Acceptance Criteria**:
   - Successful replay requests return `202` with `notification_event_id`, `replay_id`, `replay_status`, `created_at`, message, and correlation ID.
   - Completed events return `400`, missing replay scope returns `403`, cross-client IDs return `404`, and idempotency conflicts return `409`.

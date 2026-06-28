@@ -4,16 +4,17 @@
 
 All endpoints require authentication. The authenticated principal determines the caller's `client_id`; `client_id` is not accepted as a query parameter. Returning `404` for missing or cross-client resources avoids leaking whether another client's event exists.
 
-Recommended authorization:
+Assessment-slice authorization:
 
-- OAuth2 client credentials or signed JWTs for machine-to-machine API clients.
-- Scopes such as `notification-events:read`, `notification-events:payload:read`, and `notification-events:replay`.
-- Per-client and per-token rate limits for list, detail, and replay endpoints.
+- `X-Client-Id` supplies the local tenant identity.
+- `X-Scopes` must include `notification-events:read` for list/detail and `notification-events:replay` for replay.
+- Production should replace header auth with OAuth2 client credentials or signed JWTs.
+- Production should add per-client and per-token rate limits for list, detail, and replay endpoints.
 - A `correlation_id` in every response and error response.
 
 ## Resource Shape
 
-Notification event responses return operational metadata by default. Raw notification payloads can contain financial and personal data, so the API only returns redacted summaries unless the caller passes `include_payload=true` and has the elevated `notification-events:payload:read` scope.
+Notification event responses return operational metadata and redacted summaries by default. Raw notification payloads can contain financial and personal data, so production should require an elevated payload-read scope before returning raw payloads. The local assessment slice always returns redacted summaries.
 
 Default event shape:
 
@@ -86,7 +87,6 @@ Query parameters:
 | `created_from` | No | Inclusive ISO-8601 timestamp lower bound. |
 | `created_to` | No | Inclusive ISO-8601 timestamp upper bound. |
 | `delivery_status` | No | One of `pending`, `in_progress`, `completed`, `retrying`, `failed`. |
-| `include_payload` | No | Defaults to `false`; requires `notification-events:payload:read` when `true`. |
 | `page` | No | Zero-based page number. Default `0`. |
 | `size` | No | Page size. Default `20`, maximum `100`. |
 
@@ -180,18 +180,18 @@ Status codes:
 | `403` | Authenticated but missing required scope. |
 | `404` | Event does not exist or belongs to another client. |
 
-## `POST /notification_events/{notification_event_id}/replays`
+## `POST /notification_events/{notification_event_id}/replay`
 
 Requests a replay for a terminal failed notification event. Replay is modeled as a separate resource so the original notification's failed delivery history remains immutable and auditable.
 
-The request requires `Idempotency-Key`. The same client using the same key for the same request receives the original replay response. The same key with a different request body returns `409`.
+The assessment implementation accepts the singular route required by the prompt and processes replay synchronously against the configured webhook endpoint. A production implementation should model replay as a separate `replay_job` resource and require `Idempotency-Key`.
 
 Example:
 
 ```http
-POST /notification_events/EVT003/replays
-Authorization: Bearer <token>
-Idempotency-Key: 3ee2e36e-84ab-4a76-86fb-c6d31115ef12
+POST /notification_events/EVT003/replay
+X-Client-Id: CLIENT002
+X-Scopes: notification-events:read,notification-events:replay
 ```
 
 Response:
@@ -199,10 +199,8 @@ Response:
 ```json
 {
   "notification_event_id": "EVT003",
-  "replay_id": "RPL-20240315-0001",
-  "replay_status": "pending",
-  "created_at": "2024-03-15T12:45:00Z",
-  "message": "Replay accepted",
+  "replay_status": "completed",
+  "message": "Replay processed",
   "correlation_id": "9c75299d4b3e4ff5"
 }
 ```
@@ -216,28 +214,23 @@ Status codes:
 | `401` | Missing or invalid authentication. |
 | `403` | Missing replay scope. |
 | `404` | Event does not exist or belongs to another client. |
-| `409` | Replay already in progress, or idempotency key reused with a different request body. |
-| `429` | Rate limit exceeded. |
 
 Replay rules:
 
 - Only `failed` events are replayable.
 - Completed events such as `EVT001`, `EVT002`, and `EVT010` are rejected with `400`.
 - Failed events such as `EVT003`, `EVT005`, and `EVT009` are accepted only for the owning client.
-- Replay uses the current active subscription endpoint so clients can fix a broken endpoint before replaying.
-- Each replay attempt stores an endpoint snapshot for auditability.
-- Automatic retry and manual replay cannot own the same delivery execution at the same time.
+- The local assessment slice uses the configured `cobre.webhook.url`.
+- Each replay stores delivery attempt metadata that is visible from the detail endpoint.
 
 Replay status values:
 
-- `pending`: replay has been accepted and is waiting for delivery.
-- `in_progress`: a worker is actively delivering the replay.
 - `completed`: replay delivery succeeded.
-- `failed`: replay delivery exhausted its attempts or hit a permanent failure.
+- `failed`: replay delivery exhausted the local retry policy or hit a permanent failure.
 
-## `GET /notification_events/{notification_event_id}/replays/{replay_id}`
+## Production Replay Status Endpoint
 
-Returns the replay job status for one replay owned by the authenticated client.
+The local assessment slice implements only the prompt-required replay endpoint. In production, Cobre should add `GET /notification_events/{notification_event_id}/replays/{replay_id}` to return the replay job status for one replay owned by the authenticated client.
 
 Example:
 
@@ -272,25 +265,24 @@ Every webhook delivery includes stable identifiers so clients can deduplicate at
 | `X-Cobre-Notification-Id` | Notification event ID; clients should deduplicate by this value. |
 | `X-Cobre-Delivery-Attempt` | Attempt number for the notification or replay execution. |
 | `X-Cobre-Timestamp` | Unix timestamp used for signature freshness checks. |
-| `X-Cobre-Signature` | HMAC signature over timestamp plus raw request body. |
+| `X-Cobre-Signature` | Production HMAC signature over timestamp plus raw request body. |
 
 ## Validation Rules
 
 - `created_from` and `created_to` must be valid ISO-8601 timestamps.
 - `created_from` must be less than or equal to `created_to`.
 - `delivery_status` must be from the allowed enum.
-- `include_payload=true` requires `notification-events:payload:read`.
 - `size` must be between `1` and `100`.
-- `notification_event_id` and `replay_id` must match supported identifier formats and be looked up with tenant scope.
-- `Idempotency-Key` is required for replay requests and is unique per client for its retention period.
+- `notification_event_id` must be looked up with tenant scope.
+- Production replay jobs should require `Idempotency-Key`, unique per client for its retention period.
 
 ## Error Shape
 
 ```json
 {
   "error": {
-    "code": "INVALID_FILTER",
-    "message": "delivery_status must be one of pending, in_progress, completed, retrying, failed",
+    "code": "bad_request",
+    "message": "delivery_status is invalid",
     "correlation_id": "9c75299d4b3e4ff5"
   }
 }

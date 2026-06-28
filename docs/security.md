@@ -17,7 +17,7 @@ Mitigations:
 - Apply tenant scope in every repository query: lookup by `notification_event_id` and authenticated `client_id`.
 - Return `404` for missing or cross-client events.
 - Require granular scopes: `notification-events:read`, `notification-events:payload:read`, and `notification-events:replay`.
-- Return redacted event summaries by default; require elevated scope and explicit `include_payload=true` for payload access.
+- Return redacted event summaries by default. Production can add explicit payload access behind an elevated scope.
 - Audit every detail lookup, payload access, and replay request with caller, client, event ID, decision, and correlation ID.
 - Add authorization tests for cross-client list, detail, payload, and replay attempts.
 
@@ -166,7 +166,7 @@ Mitigations:
 
 - `CLIENT001` cannot list, fetch, request payloads for, or replay `CLIENT002` events.
 - Replay without `notification-events:replay` scope returns `403`.
-- `include_payload=true` without `notification-events:payload:read` returns `403`.
+- Production raw-payload access without an elevated payload scope returns `403`.
 - Replay for a completed event returns `400`.
 - Reusing the same replay idempotency key with the same request returns the stored response.
 - Reusing the same replay idempotency key with a different request returns `409`.

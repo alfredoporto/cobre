@@ -1,0 +1,322 @@
+openapi: 3.0.3
+info:
+  title: Cobre Notification Events API
+  version: 1.0.0
+  description: Home-assessment API for querying and replaying webhook notification events.
+servers:
+  - url: http://localhost:8080
+security:
+  - ClientHeaders: []
+paths:
+  /notification_events:
+    get:
+      summary: List notification events for the authenticated client
+      parameters:
+        - $ref: "#/components/parameters/ClientIdHeader"
+        - $ref: "#/components/parameters/ScopesHeader"
+        - name: created_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: created_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: delivery_status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/DeliveryStatus"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Notification events owned by the authenticated client.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEventListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /notification_events/{notification_event_id}:
+    get:
+      summary: Get one notification event
+      parameters:
+        - $ref: "#/components/parameters/ClientIdHeader"
+        - $ref: "#/components/parameters/ScopesHeader"
+        - $ref: "#/components/parameters/NotificationEventId"
+      responses:
+        "200":
+          description: Notification event detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEventDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /notification_events/{notification_event_id}/replay:
+    post:
+      summary: Replay a failed notification event
+      parameters:
+        - $ref: "#/components/parameters/ClientIdHeader"
+        - $ref: "#/components/parameters/ScopesHeader"
+        - $ref: "#/components/parameters/NotificationEventId"
+      responses:
+        "202":
+          description: Replay accepted and processed by the local assessment slice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    ClientHeaders:
+      type: apiKey
+      in: header
+      name: X-Client-Id
+      description: Local assessment auth. Production should use OAuth2 or signed JWTs.
+  parameters:
+    ClientIdHeader:
+      name: X-Client-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      example: CLIENT002
+    ScopesHeader:
+      name: X-Scopes
+      in: header
+      required: true
+      schema:
+        type: string
+      example: notification-events:read,notification-events:replay
+    NotificationEventId:
+      name: notification_event_id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: EVT003
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing local client identity.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Missing required scope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource missing or owned by another client.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    DeliveryStatus:
+      type: string
+      enum:
+        - pending
+        - in_progress
+        - retrying
+        - completed
+        - failed
+    NotificationEventSummary:
+      type: object
+      required:
+        - notification_event_id
+        - event_type
+        - content_summary
+        - payload_redacted
+        - created_at
+        - delivery_status
+        - client_id
+      properties:
+        notification_event_id:
+          type: string
+          example: EVT003
+        event_type:
+          type: string
+          example: credit_transfer
+        content_summary:
+          type: string
+          example: Bank transfer received from Account ****4567 for $1,500.00
+        payload_redacted:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: 2024-03-15T11:20:18Z
+        delivery_status:
+          $ref: "#/components/schemas/DeliveryStatus"
+        client_id:
+          type: string
+          example: CLIENT002
+    NotificationEventListResponse:
+      type: object
+      required:
+        - data
+        - page
+        - correlation_id
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationEventSummary"
+        page:
+          $ref: "#/components/schemas/Page"
+        correlation_id:
+          type: string
+    NotificationEventDetail:
+      allOf:
+        - $ref: "#/components/schemas/NotificationEventSummary"
+        - type: object
+          required:
+            - attempt_count
+            - delivery_attempts
+            - correlation_id
+          properties:
+            attempt_count:
+              type: integer
+              example: 2
+            last_attempt_at:
+              type: string
+              format: date-time
+              nullable: true
+            next_retry_at:
+              type: string
+              format: date-time
+              nullable: true
+            final_error_code:
+              type: string
+              nullable: true
+              example: HTTP_500
+            final_error_message:
+              type: string
+              nullable: true
+              example: Webhook endpoint returned a transient error
+            delivery_attempts:
+              type: array
+              items:
+                $ref: "#/components/schemas/DeliveryAttempt"
+            correlation_id:
+              type: string
+    DeliveryAttempt:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+        attempt_number:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        result:
+          type: string
+          enum:
+            - completed
+            - failed
+        http_status:
+          type: integer
+          nullable: true
+        latency_ms:
+          type: integer
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+    Page:
+      type: object
+      properties:
+        number:
+          type: integer
+        size:
+          type: integer
+        total_elements:
+          type: integer
+        total_pages:
+          type: integer
+    ReplayResponse:
+      type: object
+      required:
+        - notification_event_id
+        - replay_status
+        - message
+        - correlation_id
+      properties:
+        notification_event_id:
+          type: string
+          example: EVT003
+        replay_status:
+          type: string
+          enum:
+            - completed
+            - failed
+        message:
+          type: string
+          example: Replay processed
+        correlation_id:
+          type: string
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: forbidden
+            message:
+              type: string
+              example: Missing required scope
+            correlation_id:
+              type: string

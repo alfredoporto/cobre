@@ -12,6 +12,8 @@
 
 ## Architecture
 
+The repository implementation is a local assessment slice: fixture-backed storage, header-based tenant identity, synchronous replay processing, and a real HTTP webhook adapter with bounded retries. The diagrams below describe the production architecture I would propose at Cobre scale.
+
 ```mermaid
 flowchart LR
     client[Client]
@@ -243,7 +245,7 @@ Future growth path:
 
 ## Local Docker Compose Topology
 
-The assessment should remain locally runnable without cloud dependencies. The expected Docker Compose topology is:
+The current repository is locally runnable with Maven only. A production-like local topology could add Docker Compose with:
 
 - API service for self-service query and replay endpoints.
 - Worker service for webhook delivery.
@@ -253,7 +255,7 @@ The assessment should remain locally runnable without cloud dependencies. The ex
 - Mock webhook receiver for local delivery testing.
 - Optional OpenTelemetry collector plus local logs for observability demonstration.
 
-Useful local commands should cover starting the stack, running tests, sending a sample platform event, inspecting delivery attempts, and triggering a replay.
+For this assessment submission, the implemented local path loads `notification_events.json`, exposes the self-service API, and sends replay webhooks to the configured `cobre.webhook.url`.
 
 ## Out Of Scope For The Assessment
 
