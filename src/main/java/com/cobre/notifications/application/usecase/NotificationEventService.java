@@ -68,7 +68,7 @@ public class NotificationEventService {
         if (results.isEmpty()) {
             throw new InvalidRequestException("Replay did not produce a delivery result");
         }
-        WebhookDeliveryResult result = results.get(results.size() - 1);
+        WebhookDeliveryResult result = results.getLast();
         List<DeliveryAttempt> newAttempts = new ArrayList<>();
         for (int index = 0; index < results.size(); index++) {
             WebhookDeliveryResult attemptResult = results.get(index);
