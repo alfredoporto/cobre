@@ -2,7 +2,6 @@ package com.cobre.notifications.domain;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -15,11 +14,11 @@ public class NotificationEvent {
     private final String contentSummary;
     private final Map<String, Object> payload;
     private final Instant createdAt;
-    private DeliveryStatus deliveryStatus;
-    private Instant lastAttemptAt;
-    private Instant nextRetryAt;
-    private String finalErrorCode;
-    private String finalErrorMessage;
+    private final DeliveryStatus deliveryStatus;
+    private final Instant lastAttemptAt;
+    private final Instant nextRetryAt;
+    private final String finalErrorCode;
+    private final String finalErrorMessage;
     private final List<DeliveryAttempt> deliveryAttempts;
 
     public NotificationEvent(
@@ -34,6 +33,36 @@ public class NotificationEvent {
             List<DeliveryAttempt> deliveryAttempts,
             String finalErrorCode,
             String finalErrorMessage) {
+        this(
+                notificationEventId,
+                sourceEventId,
+                clientId,
+                eventType,
+                contentSummary,
+                payload,
+                createdAt,
+                deliveryStatus,
+                lastAttemptAt(deliveryAttempts),
+                null,
+                finalErrorCode,
+                finalErrorMessage,
+                deliveryAttempts);
+    }
+
+    private NotificationEvent(
+            String notificationEventId,
+            String sourceEventId,
+            String clientId,
+            String eventType,
+            String contentSummary,
+            Map<String, Object> payload,
+            Instant createdAt,
+            DeliveryStatus deliveryStatus,
+            Instant lastAttemptAt,
+            Instant nextRetryAt,
+            String finalErrorCode,
+            String finalErrorMessage,
+            List<DeliveryAttempt> deliveryAttempts) {
         this.notificationEventId = notificationEventId;
         this.sourceEventId = sourceEventId;
         this.clientId = clientId;
@@ -42,35 +71,48 @@ public class NotificationEvent {
         this.payload = Map.copyOf(payload);
         this.createdAt = createdAt;
         this.deliveryStatus = deliveryStatus;
-        this.deliveryAttempts = new ArrayList<>(deliveryAttempts);
-        this.lastAttemptAt = deliveryAttempts.stream()
-                .map(DeliveryAttempt::finishedAt)
-                .max(Instant::compareTo)
-                .orElse(null);
-        this.nextRetryAt = null;
+        this.deliveryAttempts = List.copyOf(deliveryAttempts);
+        this.lastAttemptAt = lastAttemptAt;
+        this.nextRetryAt = nextRetryAt;
         this.finalErrorCode = finalErrorCode;
         this.finalErrorMessage = finalErrorMessage;
     }
 
-    public synchronized void recordAttempt(DeliveryAttempt attempt, boolean finalAttempt) {
-        deliveryAttempts.add(attempt);
-        lastAttemptAt = attempt.finishedAt();
-        if (attempt.result() == DeliveryResult.COMPLETED) {
-            deliveryStatus = DeliveryStatus.COMPLETED;
-            nextRetryAt = null;
-            finalErrorCode = null;
-            finalErrorMessage = null;
-        } else if (finalAttempt) {
-            deliveryStatus = DeliveryStatus.FAILED;
-            nextRetryAt = null;
-            finalErrorCode = attempt.errorCode();
-            finalErrorMessage = attempt.errorMessage();
-        } else {
-            deliveryStatus = DeliveryStatus.RETRYING;
+    public NotificationEvent withDeliveryAttemptsAppended(List<DeliveryAttempt> attempts) {
+        if (attempts.isEmpty()) {
+            return this;
         }
+
+        List<DeliveryAttempt> updatedAttempts = new ArrayList<>(deliveryAttempts);
+        updatedAttempts.addAll(attempts);
+        DeliveryAttempt finalAttempt = attempts.get(attempts.size() - 1);
+        DeliveryStatus updatedStatus = finalAttempt.result() == DeliveryResult.COMPLETED
+                ? DeliveryStatus.COMPLETED
+                : DeliveryStatus.FAILED;
+        String updatedFinalErrorCode = finalAttempt.result() == DeliveryResult.COMPLETED
+                ? null
+                : finalAttempt.errorCode();
+        String updatedFinalErrorMessage = finalAttempt.result() == DeliveryResult.COMPLETED
+                ? null
+                : finalAttempt.errorMessage();
+
+        return new NotificationEvent(
+                notificationEventId,
+                sourceEventId,
+                clientId,
+                eventType,
+                contentSummary,
+                payload,
+                createdAt,
+                updatedStatus,
+                lastAttemptAt(updatedAttempts),
+                null,
+                updatedFinalErrorCode,
+                updatedFinalErrorMessage,
+                updatedAttempts);
     }
 
-    public synchronized int nextAttemptNumber() {
+    public int nextAttemptNumber() {
         return deliveryAttempts.size() + 1;
     }
 
@@ -102,31 +144,38 @@ public class NotificationEvent {
         return createdAt;
     }
 
-    public synchronized DeliveryStatus deliveryStatus() {
+    public DeliveryStatus deliveryStatus() {
         return deliveryStatus;
     }
 
-    public synchronized int attemptCount() {
+    public int attemptCount() {
         return deliveryAttempts.size();
     }
 
-    public synchronized Instant lastAttemptAt() {
+    public Instant lastAttemptAt() {
         return lastAttemptAt;
     }
 
-    public synchronized Instant nextRetryAt() {
+    public Instant nextRetryAt() {
         return nextRetryAt;
     }
 
-    public synchronized String finalErrorCode() {
+    public String finalErrorCode() {
         return finalErrorCode;
     }
 
-    public synchronized String finalErrorMessage() {
+    public String finalErrorMessage() {
         return finalErrorMessage;
     }
 
-    public synchronized List<DeliveryAttempt> deliveryAttempts() {
-        return Collections.unmodifiableList(new ArrayList<>(deliveryAttempts));
+    public List<DeliveryAttempt> deliveryAttempts() {
+        return deliveryAttempts;
+    }
+
+    private static Instant lastAttemptAt(List<DeliveryAttempt> deliveryAttempts) {
+        return deliveryAttempts.stream()
+                .map(DeliveryAttempt::finishedAt)
+                .max(Instant::compareTo)
+                .orElse(null);
     }
 }

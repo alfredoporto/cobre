@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 class FakeWebhookDeliveryPort implements WebhookDeliveryPort {
 
     private final ConcurrentLinkedQueue<WebhookDeliveryResult> responses = new ConcurrentLinkedQueue<>();
-    private final List<String> deliveries = new ArrayList<>();
+    private final ConcurrentLinkedQueue<String> deliveries = new ConcurrentLinkedQueue<>();
 
     @Override
     public List<WebhookDeliveryResult> send(
@@ -37,11 +37,11 @@ class FakeWebhookDeliveryPort implements WebhookDeliveryPort {
         responses.add(response);
     }
 
-    synchronized List<String> deliveries() {
+    List<String> deliveries() {
         return List.copyOf(deliveries);
     }
 
-    synchronized void reset() {
+    void reset() {
         responses.clear();
         deliveries.clear();
     }

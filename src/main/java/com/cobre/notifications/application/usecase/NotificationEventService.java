@@ -16,6 +16,7 @@ import com.cobre.notifications.domain.NotificationEvent;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,11 +69,12 @@ public class NotificationEventService {
             throw new InvalidRequestException("Replay did not produce a delivery result");
         }
         WebhookDeliveryResult result = results.get(results.size() - 1);
+        List<DeliveryAttempt> newAttempts = new ArrayList<>();
         for (int index = 0; index < results.size(); index++) {
             WebhookDeliveryResult attemptResult = results.get(index);
             Instant finishedAt = clock.instant();
             Instant startedAt = finishedAt.minusMillis(Math.max(attemptResult.latencyMs(), 0));
-            DeliveryAttempt attempt = new DeliveryAttempt(
+            newAttempts.add(new DeliveryAttempt(
                     "ATT-" + UUID.randomUUID(),
                     event.notificationEventId(),
                     firstAttemptNumber + index,
@@ -82,14 +84,14 @@ public class NotificationEventService {
                     attemptResult.httpStatus(),
                     attemptResult.latencyMs(),
                     attemptResult.errorCode(),
-                    attemptResult.errorMessage());
-            event.recordAttempt(attempt, index == results.size() - 1);
+                    attemptResult.errorMessage()));
         }
-        repository.save(event);
+        NotificationEvent updatedEvent = event.withDeliveryAttemptsAppended(newAttempts);
+        repository.save(updatedEvent);
 
         String replayStatus = result.successful() ? "completed" : "failed";
         String message = result.successful() ? "Replay processed" : "Replay processed with failed delivery";
-        return new ReplayResult(event.notificationEventId(), replayStatus, message);
+        return new ReplayResult(updatedEvent.notificationEventId(), replayStatus, message);
     }
 
     private static void requireScope(AuthenticatedClient client, String scope) {
