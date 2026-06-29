@@ -27,8 +27,11 @@ class NotificationEventSecurityAndValidationApiTests extends NotificationEventWe
     void whenQueryParametersAreInvalid_shouldReturnBadRequest() throws Exception {
         assertBadRequest("/notification_events?delivery_status=unknown");
         assertBadRequest("/notification_events?created_from=not-a-date");
+        assertBadRequest("/notification_events?created_from=2024-03-16T00:00:00Z&created_to=2024-03-15T00:00:00Z");
+        assertBadRequest("/notification_events?size=0");
         assertBadRequest("/notification_events?size=101");
         assertBadRequest("/notification_events?page=-1");
+        assertBadRequest("/notification_events?page=not-a-number");
     }
 
     private void assertBadRequest(String path) throws Exception {

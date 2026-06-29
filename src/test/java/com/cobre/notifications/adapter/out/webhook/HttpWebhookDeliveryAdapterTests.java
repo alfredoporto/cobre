@@ -75,6 +75,25 @@ class HttpWebhookDeliveryAdapterTests {
         assertThat(httpClient.requests()).hasSize(1);
     }
 
+    @Test
+    void whenTransportErrorOccurs_shouldReturnRetryableConnectivityFailure() {
+        StubHttpClient httpClient = new StubHttpClient();
+        httpClient.failWithIOException();
+        HttpWebhookDeliveryAdapter adapter = new HttpWebhookDeliveryAdapter(
+                properties(1),
+                httpClient,
+                new ObjectMapper());
+
+        var results = adapter.send(event(), 1, "corr-123");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).result()).isEqualTo(DeliveryResult.FAILED);
+        assertThat(results.get(0).httpStatus()).isNull();
+        assertThat(results.get(0).retryable()).isTrue();
+        assertThat(results.get(0).errorCode()).isEqualTo("WEBHOOK_CONNECTIVITY_ERROR");
+        assertThat(httpClient.requests()).hasSize(1);
+    }
+
     private static WebhookDeliveryProperties properties(int maxAttempts) {
         return new WebhookDeliveryProperties(
                 URI.create("https://client.example/webhook"),
@@ -114,9 +133,14 @@ class HttpWebhookDeliveryAdapterTests {
 
         private final Queue<Integer> statuses = new ConcurrentLinkedQueue<>();
         private final List<HttpRequest> requests = new ArrayList<>();
+        private boolean failWithIOException;
 
         void enqueue(int status) {
             statuses.add(status);
+        }
+
+        void failWithIOException() {
+            failWithIOException = true;
         }
 
         List<HttpRequest> requests() {
@@ -172,6 +196,10 @@ class HttpWebhookDeliveryAdapterTests {
         public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler)
                 throws IOException, InterruptedException {
             requests.add(request);
+            if (failWithIOException) {
+                failWithIOException = false;
+                throw new IOException("connection refused");
+            }
             int status = statuses.isEmpty() ? 200 : statuses.remove();
             return new StubHttpResponse<>(request, status, null);
         }

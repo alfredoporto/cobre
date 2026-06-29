@@ -1,6 +1,8 @@
 package com.cobre.notifications.domain;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,6 +71,85 @@ class NotificationEventTests {
                 null))).isInstanceOf(UnsupportedOperationException.class);
     }
 
+    @Test
+    void whenReadingPayload_shouldExposeDeeplyImmutablePayload() {
+        Map<String, Object> nested = new LinkedHashMap<>();
+        nested.put("account_last4", "4567");
+        List<Object> tags = new ArrayList<>();
+        tags.add("original");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("nested", nested);
+        payload.put("tags", tags);
+
+        NotificationEvent event = new NotificationEvent(
+                "EVT999",
+                "EVT999",
+                "CLIENT999",
+                "credit_transfer",
+                "Bank transfer received from Account ****4567 for $1,500.00",
+                payload,
+                Instant.parse("2024-03-15T11:20:18Z"),
+                DeliveryStatus.FAILED,
+                List.of(attempt(
+                        "ATT-SEED",
+                        1,
+                        DeliveryResult.FAILED,
+                        500,
+                        "HTTP_500",
+                        "Initial fixture delivery failed")),
+                "HTTP_500",
+                "Initial fixture delivery failed");
+
+        nested.put("account_last4", "9999");
+        tags.add("mutated");
+
+        assertThat(event.payload()).containsOnlyKeys("nested", "tags");
+        assertThat(nestedPayload(event).get("account_last4")).isEqualTo("4567");
+        assertThat(tagsPayload(event)).containsExactly("original");
+        assertThatThrownBy(() -> event.payload().put("illegal", "value"))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> nestedPayload(event).put("illegal", "value"))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> tagsPayload(event).add("illegal"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void whenAppendingAttemptForDifferentEvent_shouldRejectAttempt() {
+        NotificationEvent original = failedEvent();
+        DeliveryAttempt attemptForAnotherEvent = new DeliveryAttempt(
+                "ATT-OTHER",
+                "EVT-OTHER",
+                2,
+                Instant.parse("2024-03-15T12:20:18Z"),
+                Instant.parse("2024-03-15T12:20:19Z"),
+                DeliveryResult.COMPLETED,
+                200,
+                1000,
+                null,
+                null);
+
+        assertThatThrownBy(() -> original.withDeliveryAttemptsAppended(List.of(attemptForAnotherEvent)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Delivery attempt belongs to another notification event");
+    }
+
+    @Test
+    void whenAppendingNonSequentialAttempt_shouldRejectAttempt() {
+        NotificationEvent original = failedEvent();
+        DeliveryAttempt skippedAttemptNumber = attempt(
+                "ATT-REPLAY-3",
+                3,
+                DeliveryResult.COMPLETED,
+                200,
+                null,
+                null);
+
+        assertThatThrownBy(() -> original.withDeliveryAttemptsAppended(List.of(skippedAttemptNumber)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Delivery attempt numbers must be sequential");
+    }
+
     private static NotificationEvent failedEvent() {
         DeliveryAttempt seedAttempt = attempt(
                 "ATT-SEED",
@@ -110,5 +191,15 @@ class NotificationEventTests {
                 100,
                 errorCode,
                 errorMessage);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<Object, Object> nestedPayload(NotificationEvent event) {
+        return (Map<Object, Object>) event.payload().get("nested");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> tagsPayload(NotificationEvent event) {
+        return (List<Object>) event.payload().get("tags");
     }
 }

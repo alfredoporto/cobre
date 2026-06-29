@@ -95,4 +95,16 @@ class NotificationEventReplayApiTests extends NotificationEventWebTestSupport {
         assertThat(replay.body().path("error").path("code").asText()).isEqualTo("bad_request");
         assertThat(webhook.deliveries()).isEmpty();
     }
+
+    @Test
+    void whenReplayingCrossClientEvent_shouldReturnNotFoundAndSkipWebhookDelivery() throws Exception {
+        Response replay = perform(authorized(
+                post("/notification_events/EVT003/replay"),
+                "CLIENT001",
+                "notification-events:replay"));
+
+        assertThat(replay.status()).isEqualTo(404);
+        assertThat(replay.body().path("error").path("code").asText()).isEqualTo("not_found");
+        assertThat(webhook.deliveries()).isEmpty();
+    }
 }

@@ -2,8 +2,11 @@ package com.cobre.notifications.domain;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class NotificationEvent {
 
@@ -68,7 +71,7 @@ public class NotificationEvent {
         this.clientId = clientId;
         this.eventType = eventType;
         this.contentSummary = contentSummary;
-        this.payload = Map.copyOf(payload);
+        this.payload = immutablePayload(payload);
         this.createdAt = createdAt;
         this.deliveryStatus = deliveryStatus;
         this.deliveryAttempts = List.copyOf(deliveryAttempts);
@@ -79,13 +82,16 @@ public class NotificationEvent {
     }
 
     public NotificationEvent withDeliveryAttemptsAppended(List<DeliveryAttempt> attempts) {
+        Objects.requireNonNull(attempts, "attempts must not be null");
         if (attempts.isEmpty()) {
             return this;
         }
 
+        List<DeliveryAttempt> appendedAttempts = List.copyOf(attempts);
+        validateAppendedAttempts(appendedAttempts);
         List<DeliveryAttempt> updatedAttempts = new ArrayList<>(deliveryAttempts);
-        updatedAttempts.addAll(attempts);
-        DeliveryAttempt finalAttempt = attempts.get(attempts.size() - 1);
+        updatedAttempts.addAll(appendedAttempts);
+        DeliveryAttempt finalAttempt = appendedAttempts.get(appendedAttempts.size() - 1);
         DeliveryStatus updatedStatus = finalAttempt.result() == DeliveryResult.COMPLETED
                 ? DeliveryStatus.COMPLETED
                 : DeliveryStatus.FAILED;
@@ -177,5 +183,41 @@ public class NotificationEvent {
                 .map(DeliveryAttempt::finishedAt)
                 .max(Instant::compareTo)
                 .orElse(null);
+    }
+
+    private void validateAppendedAttempts(List<DeliveryAttempt> attempts) {
+        for (int index = 0; index < attempts.size(); index++) {
+            DeliveryAttempt attempt = attempts.get(index);
+            if (!notificationEventId.equals(attempt.notificationEventId())) {
+                throw new IllegalArgumentException("Delivery attempt belongs to another notification event");
+            }
+            int expectedAttemptNumber = deliveryAttempts.size() + index + 1;
+            if (attempt.attemptNumber() != expectedAttemptNumber) {
+                throw new IllegalArgumentException("Delivery attempt numbers must be sequential");
+            }
+        }
+    }
+
+    private static Map<String, Object> immutablePayload(Map<String, Object> payload) {
+        Objects.requireNonNull(payload, "payload must not be null");
+        Map<String, Object> copy = new LinkedHashMap<>();
+        payload.forEach((key, value) -> copy.put(
+                Objects.requireNonNull(key, "payload keys must not be null"),
+                immutablePayloadValue(value)));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static Object immutablePayloadValue(Object value) {
+        if (value instanceof Map<?, ?> nestedMap) {
+            Map<Object, Object> copy = new LinkedHashMap<>();
+            nestedMap.forEach((key, nestedValue) -> copy.put(key, immutablePayloadValue(nestedValue)));
+            return Collections.unmodifiableMap(copy);
+        }
+        if (value instanceof List<?> nestedList) {
+            return nestedList.stream()
+                    .map(NotificationEvent::immutablePayloadValue)
+                    .toList();
+        }
+        return value;
     }
 }
