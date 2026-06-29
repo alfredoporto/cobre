@@ -4,6 +4,8 @@ Runnable home-assessment implementation for the Cobre event notification challen
 
 The repository contains a focused Spring Boot slice for the required self-service API and webhook replay flow, plus architecture documentation for the production-grade outbox design.
 
+[System Design - Excali] (https://excalidraw.com/#json=Of-ig1IP9xI7o15aebJuN,-CkbE_KP_zYC6F3tezEwBA)
+
 ## What Is Implemented
 
 - Java 21 Spring Boot service using a hexagonal package structure.
