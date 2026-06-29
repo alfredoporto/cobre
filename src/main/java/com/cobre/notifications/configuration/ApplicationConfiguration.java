@@ -8,8 +8,8 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.cobre.notifications.adapter.api.CorrelationIdFilter;
-import com.cobre.notifications.configuration.security.ClientHeaderAuthenticationFilter;
+import com.cobre.notifications.adapter.in.web.CorrelationIdFilter;
+import com.cobre.notifications.adapter.in.security.ClientHeaderAuthenticationFilter;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WebhookDeliveryProperties.class)

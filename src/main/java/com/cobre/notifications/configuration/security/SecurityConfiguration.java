@@ -9,7 +9,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
-import com.cobre.notifications.adapter.api.CorrelationIdFilter;
+import com.cobre.notifications.adapter.in.security.ClientHeaderAuthenticationFilter;
+import com.cobre.notifications.adapter.in.web.CorrelationIdFilter;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
